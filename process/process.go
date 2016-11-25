@@ -25,13 +25,13 @@ type Config struct {
 
 func Install(config Config) error {
 	// FIXME(vdemeester) use a logger system instead of fmt.Printf
-	if err := isDir(config.Source); err != nil {
+	if _, err := isDirAndFollow(config.Source); err != nil {
 		return err
 	}
-	if err := isDir(config.Target); err != nil {
+	if _, err := isDirAndFollow(config.Target); err != nil {
 		return err
 	}
-	var visit func(base, target string) filepath.WalkFunc
+	var visit func(base, resolvedBase, target string) filepath.WalkFunc
 	switch config.Mode {
 	case TuckMode:
 		visit = tuckit
@@ -44,11 +44,15 @@ func Install(config Config) error {
 			return err
 		}
 		for _, match := range matches {
-			if err := isDir(match); err != nil {
+			fmt.Println("matches", matches)
+			// Kinda hacky, if the match is a symlink, follow it for match but pass it to visit
+			resolvedMatch, err := isDirAndFollow(match)
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "Skip non folder module: %s\n", match)
+				continue
 			}
 			fmt.Printf("tuck module: %s into %s\n", match, config.Target)
-			err = filepath.Walk(match, visit(match, config.Target))
+			err = filepath.Walk(resolvedMatch, visit(match, resolvedMatch, config.Target))
 			if err != nil {
 				return err
 			}
@@ -57,14 +61,16 @@ func Install(config Config) error {
 	return nil
 }
 
-func tuckit(base, target string) filepath.WalkFunc {
+func tuckit(base, resolvedBase, target string) filepath.WalkFunc {
 	return func(path string, info os.FileInfo, err error) error {
-		absPath, absTargetPath, err := getAbsolutePaths(base, target, path)
+		absPath, absTargetPath, err := getAbsolutePaths(base, resolvedBase, target, path)
 		if err != nil {
 			return err
 		}
 		if info.IsDir() {
-			err := os.Mkdir(absTargetPath, info.Mode())
+			// Make sure the folder is user writable
+			mode := info.Mode() | 0700
+			err := os.Mkdir(absTargetPath, mode)
 			if os.IsExist(err) {
 				return nil
 			}
@@ -104,9 +110,9 @@ func tuckit(base, target string) filepath.WalkFunc {
 	}
 }
 
-func untuckit(base, target string) filepath.WalkFunc {
+func untuckit(base, resolvedBase, target string) filepath.WalkFunc {
 	return func(path string, info os.FileInfo, err error) error {
-		absPath, absTargetPath, err := getAbsolutePaths(base, target, path)
+		absPath, absTargetPath, err := getAbsolutePaths(base, resolvedBase, target, path)
 		if err != nil {
 			return err
 		}
@@ -142,13 +148,13 @@ func untuckit(base, target string) filepath.WalkFunc {
 	}
 }
 
-func getAbsolutePaths(base, target, path string) (string, string, error) {
-	relativePath, err := filepath.Rel(base, path)
+func getAbsolutePaths(base, resolvedBase, target, path string) (string, string, error) {
+	relativePath, err := filepath.Rel(resolvedBase, path)
 	if err != nil {
 		return "", "", err
 	}
 	targetPath := filepath.Join(target, relativePath)
-	absPath, err := filepath.Abs(path)
+	absPath, err := filepath.Abs(filepath.Join(base, relativePath))
 	if err != nil {
 		return "", "", err
 	}
@@ -159,13 +165,20 @@ func getAbsolutePaths(base, target, path string) (string, string, error) {
 	return absPath, absTargetPath, nil
 }
 
-func isDir(dir string) error {
-	fi, err := os.Stat(dir)
+func isDirAndFollow(dir string) (string, error) {
+	fi, err := os.Lstat(dir)
 	if err != nil {
-		return errors.Wrapf(err, "couldn't validate folder: %s", dir)
+		return dir, errors.Wrapf(err, "couldn't validate folder: %s", dir)
 	}
-	if !fi.IsDir() {
-		return errors.Errorf("%s is not a folder", dir)
+	switch {
+	case fi.IsDir():
+		return dir, nil
+	case fi.Mode()&os.ModeSymlink != 0:
+		link, err := os.Readlink(dir)
+		if err != nil {
+			return dir, err
+		}
+		return isDirAndFollow(link)
 	}
-	return nil
+	return dir, errors.Errorf("%s is not a folder", dir)
 }
