@@ -43,7 +43,6 @@ func Install(config Config) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("matches: %+v\n", matches)
 		for _, match := range matches {
 			if err := isDir(match); err != nil {
 				fmt.Fprintf(os.Stderr, "Skip non folder module: %s\n", match)
