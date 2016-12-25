@@ -1,4 +1,4 @@
-# tuck [![Build Status](https://travis-ci.org/vdemeester/tuck.svg?branch=master)](https://travis-ci.org/vdemeester/tuck)
+# 🐄 tuck [![Build Status](https://travis-ci.org/vdemeester/tuck.svg?branch=master)](https://travis-ci.org/vdemeester/tuck)
 
 `tuck` is symlink farm manager *à-la-stow* written in Go. In a
 nutshell, it's a tools that create symlink in a target based on a
