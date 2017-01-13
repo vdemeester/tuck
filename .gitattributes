@@ -1,0 +1,7 @@
+# GitHub by default hides vendored code when viewing diffs, excludes them
+# from being searched, and navigated ("t" keyboard shortcut).
+# We want to be able to search, and review changes in vendored packages, so
+# this overrides the default, and marks vendored packages as "not vendored"
+# For reference, see https://github.com/github/linguist/pull/1549, 
+# https://github.com/github/linguist/issues/3234
+vendor/** linguist-vendored=false
