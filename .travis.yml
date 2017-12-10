@@ -6,6 +6,7 @@ go:
   
 install:
   - go get -u github.com/golang/dep/cmd/dep
+  - dep ensure -v
 script:
   - go build ./cmd/
   - go test ./...
